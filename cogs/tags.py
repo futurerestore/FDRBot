@@ -39,7 +39,7 @@ class Tags(commands.Cog):
     @commands.command()
     @commands.guild_only()
     async def addtag(self, ctx: commands.Context, name: str) -> None:
-        cancelled_embed = discord.Embed(title='Remove Tag', description='Cancelled.')
+        cancelled_embed = discord.Embed(title='Add Tag', description='Cancelled.')
         embed = discord.Embed(title='Add Tag', description=f'What text would you like to have for `{name}`? Type `cancel` to cancel.')
         timeout_embed = discord.Embed(title='Add Tag', description='No response given in 5 minutes, cancelling.')
 
