@@ -39,10 +39,11 @@ class Tags(commands.Cog):
     @commands.command()
     @commands.guild_only()
     async def addtag(self, ctx: commands.Context, name: str) -> None:
+        cancelled_embed = discord.Embed(title='Remove Tag', description='Cancelled.')
+        embed = discord.Embed(title='Add Tag', description=f'What text would you like to have for `{name}`? Type `cancel` to cancel.')
         timeout_embed = discord.Embed(title='Add Tag', description='No response given in 5 minutes, cancelling.')
-        embed = discord.Embed(title='Add Tag', description=f'What text would you like to have for `{name}`?')
 
-        for x in (embed, timeout_embed):
+        for x in (embed, cancelled_embed, timeout_embed):
             x.set_footer(text=ctx.author.display_name, icon_url=ctx.author.avatar_url_as(static_format='png'))
 
         message = await ctx.reply(embed=embed)
@@ -58,6 +59,10 @@ class Tags(commands.Cog):
             await response.delete()
         except discord.errors.NotFound:
             pass
+
+        if answer.lower().replace(' ', '') == 'cancel':
+            await message.edit(embed=cancelled_embed)
+            return
 
         async with aiosqlite.connect('Data/fdrbot.db') as db:
             await db.execute('INSERT INTO tags(name, text, creator) VALUES(?,?,?)', (name, answer, ctx.author.id))
