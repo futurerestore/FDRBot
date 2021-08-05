@@ -68,7 +68,7 @@ class Tags(commands.Cog):
         await message.edit(embed=embed)
 
 
-    @commands.command(aliases=('rmtag',))
+    @commands.command(aliases=('rmtag', 'deletetag'))
     @commands.guild_only()
     async def deltag(self, ctx: commands.Context, name: str) -> None:
         cancelled_embed = discord.Embed(title='Remove Tag', description='Cancelled.')
