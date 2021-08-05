@@ -46,6 +46,14 @@ class Tags(commands.Cog):
         for x in (embed, cancelled_embed, timeout_embed):
             x.set_footer(text=ctx.author.display_name, icon_url=ctx.author.avatar_url_as(static_format='png'))
 
+        async with aiosqlite.connect('Data/fdrbot.db') as db, db.execute('SELECT FROM tags WHERE name = ?', (name,)) as cursor:
+            tag = await cursor.fetchone()
+    
+        if tag is not None:
+            embed = discord.Embed(title='Error', description=f'A tag with the name {name} already exists!')
+            await ctx.reply(embed=embed)
+            return
+
         message = await ctx.reply(embed=embed)
 
         try:
