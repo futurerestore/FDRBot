@@ -10,8 +10,9 @@ class Tags(commands.Cog):
 
     @commands.command(aliases=('t',))
     @commands.guild_only()
-    async def tag(self, ctx: commands.Context, tag: str) -> None:
-        async with aiosqlite.connect('Data/fdrbot.db') as db, db.execute('SELECT * FROM tags WHERE name = ?', (tag,)) as cursor:
+    async def tag(self, ctx: commands.Context, name: str) -> None:
+        name = name.lower()
+        async with aiosqlite.connect('Data/fdrbot.db') as db, db.execute('SELECT * FROM tags WHERE name = ?', (name,)) as cursor:
             tag = await cursor.fetchone()
 
         if tag is None:
@@ -39,6 +40,8 @@ class Tags(commands.Cog):
     @commands.command()
     @commands.guild_only()
     async def addtag(self, ctx: commands.Context, name: str) -> None:
+        name = name.lower()
+
         cancelled_embed = discord.Embed(title='Add Tag', description='Cancelled.')
         embed = discord.Embed(title='Add Tag', description=f'What text would you like to have for `{name}`? Type `cancel` to cancel.')
         timeout_embed = discord.Embed(title='Add Tag', description='No response given in 5 minutes, cancelling.')
@@ -82,6 +85,8 @@ class Tags(commands.Cog):
     @commands.command(aliases=('rmtag', 'deletetag'))
     @commands.guild_only()
     async def deltag(self, ctx: commands.Context, name: str) -> None:
+        name = name.lower()
+
         cancelled_embed = discord.Embed(title='Remove Tag', description='Cancelled.')
         invalid_embed = discord.Embed(title='Remove Tag', description='This tag does not exist!')
         timeout_embed = discord.Embed(title='Remove Tag', description='No response given in 5 minutes, cancelling.')
