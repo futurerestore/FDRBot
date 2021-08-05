@@ -35,7 +35,6 @@ class Help(commands.Cog):
 
     @help_command.command(name='misc')
     @commands.guild_only()
-    @commands.is_owner()
     async def misc_commands(self, ctx: commands.Context) -> None:
         prefix = await self.utils.get_prefix(ctx.guild.id)
 
@@ -50,7 +49,6 @@ class Help(commands.Cog):
 
     @help_command.command(name='tag')
     @commands.guild_only()
-    @commands.is_owner()
     async def tag_commands(self, ctx: commands.Context) -> None:
         prefix = await self.utils.get_prefix(ctx.guild.id)
 
