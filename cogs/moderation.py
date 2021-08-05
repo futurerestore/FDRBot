@@ -24,12 +24,12 @@ class Moderation(commands.Cog):
         elif user == ctx.author:
             return
 
-        if ctx.guild.roles.index(ctx.author.top_role) =< ctx.guild.roles.index(user.top_role):
+        if ctx.guild.roles.index(ctx.author.top_role) <= ctx.guild.roles.index(user.top_role):
             embed.description = f"You don't have permission to kick {user.mention}!"
             await ctx.reply(embed=embed)
             return
 
-        if ctx.guild.roles.index(ctx.guild.me.top_role) =< ctx.guild.roles.index(user.top_role):
+        if ctx.guild.roles.index(ctx.guild.me.top_role) <= ctx.guild.roles.index(user.top_role):
             embed.description = f"I don't have permission to kick {user.mention}!"
             await ctx.reply(embed=embed)
             return
@@ -73,12 +73,12 @@ class Moderation(commands.Cog):
             return
 
         if isinstance(user, discord.Member):
-            if ctx.guild.roles.index(ctx.author.top_role) =< ctx.guild.roles.index(user.top_role):
+            if ctx.guild.roles.index(ctx.author.top_role) <= ctx.guild.roles.index(user.top_role):
                 embed.description = f"You don't have permission to ban {user.mention}!"
                 await ctx.reply(embed=embed)
                 return
 
-            if ctx.guild.roles.index(ctx.guild.me.top_role) =< ctx.guild.roles.index(user.top_role):
+            if ctx.guild.roles.index(ctx.guild.me.top_role) <= ctx.guild.roles.index(user.top_role):
                 embed.description = f"I don't have permission to ban {user.mention}!"
                 await ctx.reply(embed=embed)
                 return
