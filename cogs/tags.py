@@ -48,7 +48,7 @@ class Tags(commands.Cog):
 
         async with aiosqlite.connect('Data/fdrbot.db') as db, db.execute('SELECT * FROM tags WHERE name = ?', (name,)) as cursor:
             if await cursor.fetchone() is not None:
-                embed = discord.Embed(title='Error', description=f'A tag with the name {name} already exists!')
+                embed = discord.Embed(title='Error', description=f'A tag with the name `{name}` already exists!')
                 await ctx.reply(embed=embed)
                 return
 
