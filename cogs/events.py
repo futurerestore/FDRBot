@@ -81,6 +81,7 @@ class Events(commands.Cog):
                 ''')
             await db.commit()
 
+        await self.bot.change_presence(activity=discord.Game(name='Ping me for help!'))
         print('FDRBot is now online.')
 
     @commands.Cog.listener()
