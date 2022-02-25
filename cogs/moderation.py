@@ -168,4 +168,4 @@ class ModerationCog(discord.Cog, name='Moderation'):
 
 
 def setup(bot):
-    bot.add_cog(Moderation(bot))
+    bot.add_cog(ModerationCog(bot))
