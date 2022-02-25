@@ -9,7 +9,7 @@ class ModerationCog(discord.Cog, name='Moderation'):
     def __init__(self, bot):
         self.bot = bot
 
-    @slash_command()
+    @slash_command(description='Kick a user.')
     async def kick(
         self,
         ctx: discord.ApplicationContext,
@@ -67,7 +67,7 @@ class ModerationCog(discord.Cog, name='Moderation'):
         )
         await ctx.respond(embed=embed)
 
-    @slash_command()
+    @slash_command(description='Ban a user.')
     async def ban(
         self,
         ctx: discord.ApplicationContext,
@@ -131,7 +131,7 @@ class ModerationCog(discord.Cog, name='Moderation'):
         )
         await ctx.respond(embed=embed)
 
-    @slash_command()
+    @slash_command(description='Delete messages from a channel.')
     async def clear(
         self,
         ctx: discord.ApplicationContext,
