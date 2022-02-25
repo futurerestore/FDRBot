@@ -99,10 +99,6 @@ async def startup():
             sys.exit(
                 "[ERROR] Token invalid, make sure the 'FDRBOT_TOKEN' environment variable is set to your bot token. Exiting."
             )
-        except discord.PrivilegedIntentsRequired:
-            sys.exit(
-                "[ERROR] Server Members Intent not enabled, go to https://discord.com/developers/applications and enable the Server Members Intent. Exiting."
-            )
 
 
 if __name__ == '__main__':
