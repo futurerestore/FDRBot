@@ -1,5 +1,5 @@
 aiohttp
-aioify
-aiofiles
+aiopath
 aiosqlite
-discord.py
+git+git://github.com/Pycord-Development/pycord@master
+python-dotenv

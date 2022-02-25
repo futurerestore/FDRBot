@@ -1,158 +1,254 @@
+from datetime import datetime
+from discord.commands import slash_command
 from discord.ext import commands
-from typing import Union
+from discord import Option
+
+import asyncio
 import discord
 
 
-class Moderation(commands.Cog):
+class ModCog(discord.Cog, name='Moderation'):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command()
-    @commands.guild_only()
-    @commands.has_guild_permissions(kick_members=True)
-    async def kick(self, ctx: commands.Context, user: Union[discord.Member, int], *, reason: str=None) -> None:
-        if isinstance(user, int):
-            user = ctx.guild.get_member(user)
+    @slash_command(description='Kick a user.')
+    async def kick(
+        self,
+        ctx: discord.ApplicationContext,
+        user: Option(commands.UserConverter, description='User to kick.'),
+        reason: Option(
+            str,
+            description='Reason for kicking the user.',
+            required=False,
+        ),
+    ) -> None:
+        if not ctx.guild.me.guild_permissions.kick_members:
+            raise commands.BotMissingPermissions(['kick_members'])
 
-        embed = discord.Embed(title='Error')
+        if not ctx.author.guild_permissions.kick_members:
+            raise commands.MissingPermissions(['kick_members'])
 
-        if user is None:
-            embed.description = "This member doesn't exist!"  
-            await ctx.reply(embed=embed)
-            return
+        member = await ctx.guild.fetch_member(user.id)
+        if member is None:
+            raise commands.BadArgument(f'{user.mention} is not in this server.')
 
-        elif user == ctx.author:
-            return
+        if ctx.guild.roles.index(ctx.guild.me.top_role) <= ctx.guild.roles.index(
+            member.top_role
+        ):
+            raise commands.BadArgument(
+                f'I do not have permission to kick {member.mention}.'
+            )
 
-        if ctx.guild.roles.index(ctx.author.top_role) <= ctx.guild.roles.index(user.top_role):
-            embed.description = f"You don't have permission to kick {user.mention}!"
-            await ctx.reply(embed=embed)
-            return
+        if ctx.guild.roles.index(ctx.author.top_role) <= ctx.guild.roles.index(
+            member.top_role
+        ) or member in (ctx.author, ctx.guild.me, ctx.guild.owner):
+            raise commands.BadArgument(f'You cannot kick {member.mention}.')
 
-        if ctx.guild.roles.index(ctx.guild.me.top_role) <= ctx.guild.roles.index(user.top_role):
-            embed.description = f"I don't have permission to kick {user.mention}!"
-            await ctx.reply(embed=embed)
-            return
-
-        embed.title = 'Kick'
+        embed = discord.Embed(
+            title='Kick',
+            description=f"You've been kicked from **{ctx.guild.name}** by {ctx.author.mention}{f' for `{reason}`' if reason else ''}.",
+        )
+        embed.set_footer(
+            text=self.bot.user.name,
+            icon_url=self.bot.user.avatar.with_static_format('png').url,
+        )
 
         try:
-            embed.description = f"You've been kicked from **{ctx.guild.name}**{f' for `{reason}`' if reason else ''}."
-            embed.set_footer(text=self.bot.user.name, icon_url=self.bot.user.avatar_url_as(static_format='png'))
-            await user.send(embed=embed)
-
+            await member.send(embed=embed)
         except discord.errors.HTTPException:
             pass
 
-        await user.kick(reason=reason)
+        await member.kick(reason=reason)
 
-        embed.description = f"{user.mention} has been kicked{f' for `{reason}`.' if reason else '.'}"
-        embed.set_footer(text=ctx.author.display_name, icon_url=ctx.author.avatar_url_as(static_format='png'))
-        await ctx.reply(embed=embed)
+        embed.description = (
+            f"{member.mention} has been kicked{f' for `{reason}`.' if reason else '.'}"
+        )
+        embed.set_footer(
+            text=ctx.author.display_name,
+            icon_url=ctx.author.avatar.with_static_format('png').url,
+        )
+        await ctx.respond(embed=embed)
 
-    @commands.command()
-    @commands.guild_only()
-    @commands.has_guild_permissions(ban_members=True)
-    async def ban(self, ctx: commands.Context, user: Union[discord.Member, discord.User, int], *, reason: str=None) -> None:
-        if isinstance(user, int):
-            user = ctx.guild.get_member(user)
+        async with self.bot.db.execute(
+            'SELECT channel FROM logs WHERE guild = ?', (ctx.guild.id,)
+        ) as cursor:
+            data = await cursor.fetchone()
 
-        embed = discord.Embed(title='Error')
+        if data is not None:
+            channel = ctx.guild.get_channel(data[0])
+            if channel is not None:
+                embed = discord.Embed(
+                    title='Member Kicked',
+                    description=f"{member.mention} has been kicked by {ctx.author.mention}.",
+                    timestamp=await asyncio.to_thread(datetime.now),
+                )
+                embed.set_thumbnail(url=member.avatar.with_static_format('png').url)
+                embed.add_field(name='Member', value=member.mention)
+                embed.add_field(name='Moderator', value=ctx.author.mention)
+                if reason:
+                    embed.add_field(name='Reason', value=reason, inline=False)
 
-        if user is None:
-            embed.description = "This member doesn't exist!"  
-            await ctx.reply(embed=embed)
-            return
+                await channel.send(embed=embed)
+            else:
+                await self.bot.db.execute(
+                    'DELETE FROM logs WHERE guild = ?', (ctx.guild.id,)
+                )
+                await self.bot.db.commit()
 
-        if user in [m for r, m in await ctx.guild.bans()]:
-            embed.description = 'This member is already banned!'
-            await ctx.reply(embed=embed)
-            return
+    @slash_command(description='Ban a user.')
+    async def ban(
+        self,
+        ctx: discord.ApplicationContext,
+        user: Option(commands.UserConverter, description='User to ban.'),
+        reason: Option(
+            str,
+            description='Reason for banning the user.',
+            required=False,
+        ),
+        delete_messages: Option(
+            int,
+            description='Days of message history to delete (defaults to 0).',
+            default=0,
+        ),
+    ) -> None:
+        if not ctx.guild.me.guild_permissions.ban_members:
+            raise commands.BotMissingPermissions(['ban_members'])
 
-        elif user == ctx.author:
-            return
+        if not ctx.author.guild_permissions.ban_members:
+            raise commands.MissingPermissions(['ban_members'])
 
-        if isinstance(user, discord.Member):
-            if ctx.guild.roles.index(ctx.author.top_role) <= ctx.guild.roles.index(user.top_role):
-                embed.description = f"You don't have permission to ban {user.mention}!"
-                await ctx.reply(embed=embed)
-                return
+        if ctx.guild.roles.index(ctx.guild.me.top_role) <= ctx.guild.roles.index(
+            user.top_role
+        ):
+            raise commands.BadArgument(
+                f'I do not have permission to ban {user.mention}.'
+            )
 
-            if ctx.guild.roles.index(ctx.guild.me.top_role) <= ctx.guild.roles.index(user.top_role):
-                embed.description = f"I don't have permission to ban {user.mention}!"
-                await ctx.reply(embed=embed)
-                return
+        if ctx.guild.roles.index(ctx.author.top_role) <= ctx.guild.roles.index(
+            user.top_role
+        ) or user in (ctx.author, ctx.guild.me, ctx.guild.owner):
+            raise commands.BadArgument(f'You cannot ban {user.mention}.')
 
-        embed.title = 'Ban'
+        if not 0 <= delete_messages <= 7:
+            raise commands.BadArgument(
+                'Number of days of message history to delete must be between 0-7.'
+            )
+
+        embed = discord.Embed(
+            title='Ban',
+            description=f"You've been banned from **{ctx.guild.name}** by {ctx.author.mention}{f' for `{reason}`' if reason else ''}.",
+        )
+        embed.set_footer(
+            text=self.bot.user.name,
+            icon_url=self.bot.user.avatar.with_static_format('png').url,
+        )
 
         try:
-            embed.description = f"You've been banned from **{ctx.guild.name}**{f' for `{reason}`' if reason else ''}."
-            embed.set_footer(text=self.bot.user.name, icon_url=self.bot.user.avatar_url_as(static_format='png'))
             await user.send(embed=embed)
-
         except discord.errors.HTTPException:
             pass
 
-        if isinstance(user, discord.User):
-            await ctx.guild.ban(discord.Object(id=user.id), reason=reason)
-        else:
-            await user.ban(reason=reason)
+        await ctx.guild.ban(user, reason=reason, delete_messages=delete_messages)
 
-        embed.description = f"{user.mention} has been banned{f' for `{reason}`.' if reason else '.'}"
-        embed.set_footer(text=ctx.author.display_name, icon_url=ctx.author.avatar_url_as(static_format='png'))
+        embed.description = (
+            f"{user.mention} has been banned{f' for `{reason}`.' if reason else '.'}"
+        )
+        embed.set_footer(
+            text=ctx.author.display_name,
+            icon_url=ctx.author.avatar.with_static_format('png').url,
+        )
+        await ctx.respond(embed=embed)
 
-        await ctx.reply(embed=embed)
+        async with self.bot.db.execute(
+            'SELECT channel FROM logs WHERE guild = ?', (ctx.guild.id,)
+        ) as cursor:
+            data = await cursor.fetchone()
 
-    @commands.command()
-    @commands.guild_only()
-    @commands.has_guild_permissions(ban_members=True)
-    async def unban(self, ctx: commands.Context, user: Union[discord.User, int]) -> None:
-        if isinstance(user, int):
-            user = await self.bot.fetch_user(user)
+        if data is not None:
+            channel = ctx.guild.get_channel(data[0])
+            if channel is not None:
+                embed = discord.Embed(
+                    title='Member Banned',
+                    description=f"{user.mention} has been Banned by {ctx.author.mention}.",
+                    timestamp=await asyncio.to_thread(datetime.now),
+                )
+                embed.set_thumbnail(url=user.avatar.with_static_format('png').url)
+                embed.add_field(name='Member', value=user.mention)
+                embed.add_field(name='Moderator', value=ctx.author.mention)
+                if reason:
+                    embed.add_field(name='Reason', value=reason, inline=False)
 
-        embed = discord.Embed(title='Error')
+                await channel.send(embed=embed)
+            else:
+                await self.bot.db.execute(
+                    'DELETE FROM logs WHERE guild = ?', (ctx.guild.id,)
+                )
+                await self.bot.db.commit()
 
-        if user is None:
-            embed.description = "This member doesn't exist!"  
-            await ctx.reply(embed=embed)
-            return
+    @slash_command(
+        name='modchannel', description='Set channel to send moderation actions to.'
+    )
+    async def set_modchannel(
+        self,
+        ctx: discord.ApplicationContext,
+        channel: Option(
+            discord.TextChannel, description='Channel to send moderation actions to.'
+        ),
+    ) -> None:
+        if not channel.permissions_for(ctx.guild.me).send_messages:
+            raise commands.BadArgument(
+                f'I do not have permission to send messages in {channel.mention}.'
+            )
 
-        elif user == ctx.author:
-            return
+        if not ctx.author.guild_permissions.manage_guild:
+            raise commands.MissingPermissions(['manage_guild'])
 
-        elif user not in [m for r, m in await ctx.guild.bans()]:
-            embed.description = 'This member is not banned!'
-            await ctx.reply(embed=embed)
-            return
+        await self.bot.db.execute(
+            'INSERT INTO logs(guild, channel) VALUES(?,?)',
+            (ctx.guild.id, channel.id),
+        )
+        await self.bot.db.commit()
 
-        embed.title = 'Unban'
+        embed = discord.Embed(
+            title='Moderation Logs',
+            description=f'Moderation actions will now be sent to {channel.mention}.',
+        )
+        embed.set_footer(
+            text=ctx.author.display_name,
+            icon_url=ctx.author.avatar.with_static_format('png').url,
+        )
+        await ctx.respond(embed=embed, ephemeral=True)
 
-        try:
-            embed.description = f"You've been unbanned from **{ctx.guild.name}**."
-            embed.set_footer(text=self.bot.user.name, icon_url=self.bot.user.avatar_url_as(static_format='png'))
-            await user.send(embed=embed)
+    @slash_command(description='Delete messages from a channel.')
+    async def clear(
+        self,
+        ctx: discord.ApplicationContext,
+        messages: Option(int, description='Number of messages to delete.'),
+    ) -> None:
+        for perm in ('manage_messages', 'read_message_history'):
+            if not getattr(ctx.guild.me.guild_permissions, perm):
+                raise commands.BotMissingPermissions([perm])
 
-        except discord.errors.HTTPException:
-            pass
+        if not ctx.author.guild_permissions.manage_messages:
+            raise commands.MissingPermissions(['manage_messages'])
 
-        await ctx.guild.unban(user)
+        if messages == 0:
+            raise commands.BadArgument(
+                'Number of messages to delete must be greater than 0.'
+            )
 
-        embed.description = f"{user.mention} has been unbanned."
-        embed.set_footer(text=ctx.author.display_name, icon_url=ctx.author.avatar_url_as(static_format='png'))
-        await ctx.reply(embed=embed)
+        await ctx.channel.purge(limit=messages)
 
-    @commands.command(aliases=('purge',))
-    @commands.guild_only()
-    @commands.has_permissions(manage_messages=True)
-    async def clear(self, ctx: commands.Context, num: int) -> None:
-        await ctx.message.delete()
-        await ctx.channel.purge(limit=num)
-
-        embed = discord.Embed(title='Clear', description=f"`{num}` message{'s' if num != 1 else ''} deleted.")
-        embed.set_footer(text=ctx.author.display_name, icon_url=ctx.author.avatar_url_as(static_format='png'))
-        message = await ctx.send(embed=embed)
-        await message.delete(delay=3)
+        embed = discord.Embed(
+            title='Clear',
+            description=f"**{messages} **message{'s' if messages != 1 else ''}** deleted.",
+        )
+        embed.set_footer(
+            text=ctx.author.display_name,
+            icon_url=ctx.author.avatar.with_static_format('png').url,
+        )
+        await ctx.respond(embed=embed, delete_after=5)
 
 
-def setup(bot):
-    bot.add_cog(Moderation(bot))
+def setup(bot: discord.Bot):
+    bot.add_cog(ModCog(bot))
