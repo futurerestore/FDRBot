@@ -13,7 +13,7 @@ class ModerationCog(discord.Cog, name='Moderation'):
     async def kick(
         self,
         ctx: discord.ApplicationContext,
-        user: Option(commands.MemberConverter, description='User to kick.'),
+        user: Option(commands.UserConverter, description='User to kick.'),
         reason: Option(
             str,
             description='Reason for kicking the user.',
@@ -29,17 +29,21 @@ class ModerationCog(discord.Cog, name='Moderation'):
         if not ctx.author.guild_permissions.kick_members:
             raise commands.errors.MissingPermissions(['kick_members'])
 
+        member = ctx.guild.get_member(user.id)
+        if member is None:
+            raise commands.errors.BadArgument(f'{user.mention} is not in this server.')
+
         if ctx.guild.roles.index(ctx.guild.me.top_role) <= ctx.guild.roles.index(
-            user.top_role
+            member.top_role
         ):
             raise commands.errors.BadArgument(
-                f'I do not have permission to kick {user.mention}.'
+                f'I do not have permission to kick {member.mention}.'
             )
 
         if ctx.guild.roles.index(ctx.author.top_role) <= ctx.guild.roles.index(
-            user.top_role
-        ) or user in (ctx.author, ctx.guild.me, ctx.guild.owner):
-            raise commands.errors.BadArgument(f'You cannot kick {user.mention}.')
+            member.top_role
+        ) or member in (ctx.author, ctx.guild.me, ctx.guild.owner):
+            raise commands.errors.BadArgument(f'You cannot kick {member.mention}.')
 
         embed = discord.Embed(
             title='Kick',
@@ -51,14 +55,14 @@ class ModerationCog(discord.Cog, name='Moderation'):
         )
 
         try:
-            await user.send(embed=embed)
+            await member.send(embed=embed)
         except discord.errors.HTTPException:
             pass
 
-        await user.kick(reason=reason)
+        await member.kick(reason=reason)
 
         embed.description = (
-            f"{user.mention} has been kicked{f' for `{reason}`.' if reason else '.'}"
+            f"{member.mention} has been kicked{f' for `{reason}`.' if reason else '.'}"
         )
         embed.set_footer(
             text=ctx.author.display_name,
