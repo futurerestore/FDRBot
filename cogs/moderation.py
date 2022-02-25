@@ -1,7 +1,9 @@
+from datetime import datetime
 from discord.commands import slash_command
 from discord.ext import commands
 from discord import Option
 
+import asyncio
 import discord
 
 
@@ -26,7 +28,7 @@ class ModCog(discord.Cog, name='Moderation'):
         if not ctx.author.guild_permissions.kick_members:
             raise commands.MissingPermissions(['kick_members'])
 
-        member = ctx.guild.get_member(user.id)
+        member = await ctx.guild.fetch_member(user.id)
         if member is None:
             raise commands.BadArgument(f'{user.mention} is not in this server.')
 
@@ -75,6 +77,17 @@ class ModCog(discord.Cog, name='Moderation'):
         if data is not None:
             channel = ctx.guild.get_channel(data[0])
             if channel is not None:
+                embed = discord.Embed(
+                    title='Member Kicked',
+                    description=f"{member.mention} has been kicked by {ctx.author.mention}.",
+                    timestamp=await asyncio.to_thread(datetime.now),
+                )
+                embed.set_thumbnail(url=member.avatar.with_static_format('png').url)
+                embed.add_field(name='Member', value=member.mention)
+                embed.add_field(name='Moderator', value=ctx.author.mention)
+                if reason:
+                    embed.add_field(name='Reason', value=reason, inline=False)
+
                 await channel.send(embed=embed)
             else:
                 await self.bot.db.execute(
@@ -154,6 +167,17 @@ class ModCog(discord.Cog, name='Moderation'):
         if data is not None:
             channel = ctx.guild.get_channel(data[0])
             if channel is not None:
+                embed = discord.Embed(
+                    title='Member Banned',
+                    description=f"{user.mention} has been Banned by {ctx.author.mention}.",
+                    timestamp=await asyncio.to_thread(datetime.now),
+                )
+                embed.set_thumbnail(url=user.avatar.with_static_format('png').url)
+                embed.add_field(name='Member', value=user.mention)
+                embed.add_field(name='Moderator', value=ctx.author.mention)
+                if reason:
+                    embed.add_field(name='Reason', value=reason, inline=False)
+
                 await channel.send(embed=embed)
             else:
                 await self.bot.db.execute(
