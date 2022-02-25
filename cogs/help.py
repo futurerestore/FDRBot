@@ -1,67 +1,112 @@
-from discord.ext import commands
+from discord.commands import slash_command
+from discord import Option
+from views.buttons import PaginatorView
+
 import discord
 
 
-class Help(commands.Cog):
-    def __init__(self, bot):
+async def cmd_autocomplete(ctx: discord.AutocompleteContext):
+    res = list()
+    for cog in ctx.bot.cogs:
+        for cmd in ctx.bot.cogs[cog].get_commands():
+            if isinstance(cmd, discord.SlashCommandGroup):
+                if cmd.name == 'admin' and not await ctx.bot.is_owner(
+                    ctx.interaction.user
+                ):
+                    continue
+
+                if len([_ for _ in cmd.subcommands if _.name == 'help']) == 0:
+                    continue
+
+                if ctx.value.lower() in cmd.name + ' help':
+                    res.append('/' + cmd.name + ' help')
+
+            elif isinstance(cmd, discord.SlashCommand):
+                if ctx.value.lower() in cmd.name:
+                    res.append('/' + cmd.name)
+
+    res.sort()
+    return res
+
+
+class HelpCog(discord.Cog, name='Help'):
+    def __init__(self, bot: discord.Bot):
         self.bot = bot
-        self.utils = self.bot.get_cog('Utils')
 
-    @commands.group(name='help', invoke_without_command=True)
-    @commands.guild_only()
-    async def help_command(self, ctx: commands.Context) -> None:
-        prefix = await self.utils.get_prefix(ctx.guild.id)
+        self.utils = self.bot.get_cog('Utilities')
 
-        embed = discord.Embed(title='Commands')
-        if await ctx.bot.is_owner(ctx.author):
-            embed.add_field(name='Admin Commands', value=f'`{prefix}help admin`', inline=False)
-        embed.add_field(name='Miscellaneous Commands', value=f'`{prefix}help misc`', inline=False)
-        embed.add_field(name='Tag Commands', value=f'`{prefix}help tag`', inline=False)
+    @slash_command(name='help', description='See usage and descriptions for commands.')
+    async def _help(
+        self,
+        ctx: discord.ApplicationContext,
+        command: Option(str, autocomplete=cmd_autocomplete, required=False),
+    ) -> None:
+        if command is None:
+            cmd_embeds = dict()
+            for cog in ctx.bot.cogs:
+                for cmd in ctx.bot.cogs[cog].get_commands():
+                    if isinstance(cmd, discord.SlashCommandGroup):
+                        if cmd.name == 'admin' and not await ctx.bot.is_owner(
+                            ctx.author
+                        ):
+                            continue
 
-        embed.set_footer(text=ctx.author.display_name, icon_url=ctx.author.avatar_url_as(static_format='png'))
-        await ctx.reply(embed=embed)
+                        cmd_embeds[cog] = await self.utils.group_help_embed(ctx, cmd)
 
-    @help_command.command(name='admin')
-    @commands.guild_only()
-    @commands.is_owner()
-    async def admin_commands(self, ctx: commands.Context) -> None:
-        prefix = await self.utils.get_prefix(ctx.guild.id)
+                    elif isinstance(cmd, discord.SlashCommand):
+                        if cog in cmd_embeds.keys():
+                            continue
 
-        embed = discord.Embed(title='Admin Commands')
-        embed.add_field(name='See module subcommands', value=f'`{prefix}module`', inline=False)
+                        cmd_embeds[cog] = await self.utils.cog_help_embed(ctx, cog)
 
-        embed.set_footer(text=ctx.author.display_name, icon_url=ctx.author.avatar_url_as(static_format='png'))
-        await ctx.reply(embed=embed)
+            cmd_embeds = sorted(cmd_embeds.values(), key=lambda _: _.title)
+            paginator = PaginatorView(cmd_embeds, ctx, timeout=180)
+            await ctx.respond(
+                embed=cmd_embeds[paginator.embed_num], view=paginator, ephemeral=True
+            )
 
-    @help_command.command(name='misc')
-    @commands.guild_only()
-    async def misc_commands(self, ctx: commands.Context) -> None:
-        prefix = await self.utils.get_prefix(ctx.guild.id)
+        else:
+            command = command.replace('/', '').lower()
 
-        embed = discord.Embed(title='Miscellaneous Commands')
-        embed.add_field(name='Get bot latency', value=f'`{prefix}ping`', inline=False)
-        if ctx.author.guild_permissions.administrator:
-            embed.add_field(name='Set prefix', value=f'`{prefix}prefix`', inline=False)
+            if ('admin' in command) and (not await self.bot.is_owner(ctx.author)):
+                cmd = None
 
-        embed.set_footer(text=ctx.author.display_name, icon_url=ctx.author.avatar_url_as(static_format='png'))
-        await ctx.reply(embed=embed)
+            elif len(command.split()) == 1:  # Slash command/group
+                cmd = self.bot.get_application_command(
+                    name=command, type=discord.ApplicationCommand
+                )
 
+            elif len(command.split()) > 1:  # Slash group with sub-command
+                group = self.bot.get_application_command(
+                    command.split()[0], type=discord.SlashCommandGroup
+                )
+                try:
+                    cmd = next(
+                        _ for _ in group.subcommands if _.name == command.split()[1]
+                    )
+                except StopIteration:
+                    cmd = None
 
-    @help_command.command(name='tag')
-    @commands.guild_only()
-    async def tag_commands(self, ctx: commands.Context) -> None:
-        prefix = await self.utils.get_prefix(ctx.guild.id)
+            if cmd is None:
+                embed = discord.Embed(title='Error', description='Command not found.')
+                await ctx.respond(embed=embed, ephemeral=True)
 
-        embed = discord.Embed(title='Tag Commands')
-        embed.add_field(name='Send tag', value=f'`{prefix}tag <tag>`', inline=False)
-        embed.add_field(name='See all tags', value=f'`{prefix}taglist`', inline=False)
-        if ctx.author.guild_permissions.manage_messages:
-            embed.add_field(name='Add tag', value=f'`{prefix}addtag <tag>`', inline=False)
-            embed.add_field(name='Remove tag', value=f'`{prefix}deltag <tag>`', inline=False)
+            elif isinstance(cmd, discord.SlashCommand):
+                embed = await self.utils.cmd_help_embed(ctx, cmd)
+                await ctx.respond(embed=embed, ephemeral=True)
 
-        embed.set_footer(text=ctx.author.display_name, icon_url=ctx.author.avatar_url_as(static_format='png'))
-        await ctx.reply(embed=embed)
+            elif isinstance(cmd, discord.SlashCommandGroup):
+                cmd_embeds = [
+                    await self.utils.cmd_help_embed(ctx, _) for _ in cmd.subcommands
+                ]
+
+                paginator = PaginatorView(cmd_embeds, ctx, timeout=180)
+                await ctx.respond(
+                    embed=cmd_embeds[paginator.embed_num],
+                    view=paginator,
+                    ephemeral=True,
+                )
 
 
 def setup(bot):
-    bot.add_cog(Help(bot))
+    bot.add_cog(HelpCog(bot))
