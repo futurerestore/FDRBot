@@ -1,156 +1,205 @@
+from .errors import ViewTimeoutException
+from collections import namedtuple
+from discord.commands import SlashCommandGroup, slash_command
+from discord.enums import InputTextStyle
 from discord.ext import commands
-import aiosqlite
-import asyncio
+from discord.ui import InputText
+from discord import Option
+from views.modals import QuestionModal
+from views.buttons import PaginatorView, SelectView
+
 import discord
 
 
-class Tags(commands.Cog):
+async def tag_autocomplete(ctx: discord.AutocompleteContext):
+    res = list()
+    async with ctx.bot.db.execute('SELECT name FROM tags') as cursor:
+        for row in await cursor.fetchall():
+            if ctx.value.lower() in row[0]:
+                res.append(row[0])
+
+    res.sort()
+    return res
+
+
+TagData = namedtuple('TagData', ['name', 'content', 'uses', 'creator'])
+
+
+class TagsCog(discord.Cog, name='Tags'):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(aliases=('t',))
-    @commands.guild_only()
-    async def tag(self, ctx: commands.Context, name: str) -> None:
-        name = name.lower()
-        async with aiosqlite.connect('Data/fdrbot.db') as db, db.execute('SELECT * FROM tags WHERE name = ?', (name,)) as cursor:
-            tag = await cursor.fetchone()
+    tags = SlashCommandGroup('tags', 'Tag commands')
 
-        if tag is None:
-            embed = discord.Embed(title='Error', description="That tag doesn't exist!")
-            await ctx.reply(embed=embed)
-            return
+    @slash_command(name='tag', description='Display a tag.')
+    async def _tag(
+        self,
+        ctx: discord.ApplicationContext,
+        name: Option(str, description='Name of tag.', autocomplete=tag_autocomplete),
+    ) -> None:
+        await self.bot.db.execute(
+            'UPDATE tags SET uses = uses + 1 WHERE name = ?', (name,)
+        )
+        await self.bot.db.commit()
 
-        creator = await self.bot.fetch_user(tag[2])
-        if creator is None:
-            name = 'Deleted User'
-        else:
+        async with self.bot.db.execute(
+            'SELECT * FROM tags WHERE name = ?', (name,)
+        ) as cursor:
+            data = await cursor.fetchone()
+
+        if data is None:
+            raise commands.BadArgument('Tag not found.')
+
+        tag = TagData(*data)
+        try:
+            creator = await self.bot.fetch_user(tag.creator)
             name = f'{creator.name}#{creator.discriminator}'
+        except discord.errors.NotFound:
+            name = 'Deleted User'
 
-        embed = discord.Embed(title=tag[0], description=tag[1])
-        embed.set_footer(text=f'Created by {name}')
-        if ctx.message.reference:
-            try:
-                await ctx.message.reference.cached_message.reply(embed=embed)
-                return
-            except:
-                pass
+        embed = discord.Embed(title=tag.name, description=tag.content)
+        embed.set_footer(
+            text=f"Created by {name} | Used {tag.uses} time{'s' if tag.uses != 1 else ''}"
+        )
 
-        await ctx.reply(embed=embed)
+        await ctx.respond(embed=embed)
 
-    @commands.command()
-    @commands.guild_only()
-    async def addtag(self, ctx: commands.Context, name: str) -> None:
-        name = name.lower()
+    @tags.command(name='add', description='Create a tag.')
+    async def add_tag(self, ctx: discord.ApplicationContext) -> None:
+        if not ctx.author.guild_permissions.manage_messages:
+            raise commands.MissingPermissions(['manage_messages'])
 
-        cancelled_embed = discord.Embed(title='Add Tag', description='Cancelled.')
-        embed = discord.Embed(title='Add Tag', description=f'What text would you like to have for `{name}`? Type `cancel` to cancel.')
-        timeout_embed = discord.Embed(title='Add Tag', description='No response given in 5 minutes, cancelling.')
+        embed = discord.Embed(title='Add Tag', description='Adding tag...')
+        embed.set_footer(
+            text=ctx.author.display_name,
+            icon_url=ctx.author.avatar.with_static_format('png').url,
+        )
 
-        for x in (embed, cancelled_embed, timeout_embed):
-            x.set_footer(text=ctx.author.display_name, icon_url=ctx.author.avatar_url_as(static_format='png'))
+        modal = QuestionModal(
+            ctx,
+            'Add Tag',
+            embed,
+            InputText(label='Enter a name for the tag.'),
+            InputText(label='Enter the content of the tag.', style=InputTextStyle.long),
+        )
 
-        async with aiosqlite.connect('Data/fdrbot.db') as db, db.execute('SELECT * FROM tags WHERE name = ?', (name,)) as cursor:
+        await ctx.interaction.response.send_modal(modal)
+        await modal.wait()
+
+        tag = TagData(modal.answers[0].lower(), modal.answers[1], 0, ctx.author.id)
+        if len(tag.name.split()) > 1:
+            raise commands.BadArgument('Tag names can only be one word.')
+
+        async with self.bot.db.execute(
+            'SELECT * FROM tags WHERE name = ?', (tag.name,)
+        ) as cursor:
             if await cursor.fetchone() is not None:
-                embed = discord.Embed(title='Error', description=f'A tag with the name `{name}` already exists!')
-                await ctx.reply(embed=embed)
-                return
+                raise commands.BadArgument(
+                    f'A tag with the name `{tag.name}` already exists.'
+                )
 
-        message = await ctx.reply(embed=embed)
+        await self.bot.db.execute(
+            'INSERT INTO tags(name, content, uses, creator) VALUES(?,?,?,?)',
+            [*tag],
+        )
+        await self.bot.db.commit()
 
-        try:
-            response = await self.bot.wait_for('message', check=lambda message: message.author == ctx.author, timeout=300)
-            answer = response.content
-        except asyncio.exceptions.TimeoutError:
-            await message.edit(embed=timeout_embed)
+        embed = discord.Embed(title='Add Tag', description=f'`{tag.name}` tag added!')
+        embed.set_footer(
+            text=ctx.author.display_name,
+            icon_url=ctx.author.avatar.with_static_format('png').url,
+        )
+        await ctx.edit(embed=embed)
+
+    @tags.command(name='remove', description='Remove a tag.')
+    async def rm_tag(
+        self,
+        ctx: discord.ApplicationContext,
+        name: Option(
+            str, description='Name of tag to remove.', autocomplete=tag_autocomplete
+        ),
+    ) -> None:
+        async with self.bot.db.execute(
+            'SELECT * FROM tags WHERE name = ?', (name,)
+        ) as cursor:
+            data = await cursor.fetchone()
+
+        if data is None:
+            raise commands.BadArgument(f'Tag `{name}` not found.')
+
+        embed = discord.Embed(
+            title='Remove Tag',
+            description=f"Are you sure you'd like to remove the `{name}` tag?",
+        )
+        embed.set_footer(
+            text=ctx.author.display_name,
+            icon_url=ctx.author.display_avatar.with_static_format('png').url,
+        )
+
+        buttons = [
+            {'label': 'Confirm', 'style': discord.ButtonStyle.danger},
+            {'label': 'Cancel', 'style': discord.ButtonStyle.secondary},
+        ]
+
+        view = SelectView(buttons, ctx)
+        await ctx.respond(embed=embed, view=view, ephemeral=True)
+        await view.wait()
+        if view.answer is None:
+            raise ViewTimeoutException(view.timeout)
+
+        if view.answer == 'Cancel':
+            embed.description = 'Cancelled.'
+            await ctx.edit(embed=embed)
             return
 
-        try:
-            await response.delete()
-        except discord.errors.NotFound:
-            pass
+        await self.bot.db.execute('DELETE FROM tags WHERE name = ?', (name,))
+        await self.bot.db.commit()
 
-        if answer.lower().replace(' ', '') == 'cancel':
-            await message.edit(embed=cancelled_embed)
-            return
+        embed.description = f'Tag `{name}` has been removed.'
+        await ctx.edit(embed=embed)
 
-        async with aiosqlite.connect('Data/fdrbot.db') as db:
-            await db.execute('INSERT INTO tags(name, text, creator) VALUES(?,?,?)', (name, answer, ctx.author.id))
-            await db.commit()
-
-        embed = discord.Embed(title='Add Tag', description=f'`{name}` tag added!')
-        embed.set_footer(text=ctx.author.display_name, icon_url=ctx.author.avatar_url_as(static_format='png'))
-        await message.edit(embed=embed)
-
-
-    @commands.command(aliases=('rmtag', 'deletetag'))
+    @tags.command(name='list', description='List all tags.')
     @commands.guild_only()
-    async def deltag(self, ctx: commands.Context, name: str) -> None:
-        name = name.lower()
+    async def list_tags(self, ctx: discord.ApplicationContext) -> None:
+        await self.bot.db.execute('UPDATE tags SET uses = uses + 1')
+        await self.bot.db.commit()
 
-        cancelled_embed = discord.Embed(title='Remove Tag', description='Cancelled.')
-        invalid_embed = discord.Embed(title='Remove Tag', description='This tag does not exist!')
-        timeout_embed = discord.Embed(title='Remove Tag', description='No response given in 5 minutes, cancelling.')
-        embed = discord.Embed(title='Remove Tag', description=f"Are you sure you'd like to delete `{name}`? Type `yes` to remove this tag, or anything else to cancel.")
+        async with self.bot.db.execute('SELECT * FROM tags') as cursor:
+            data = await cursor.fetchall()
 
-        for x in (embed, cancelled_embed, invalid_embed, timeout_embed):
-            x.set_footer(text=ctx.author.display_name, icon_url=ctx.author.avatar_url_as(static_format='png'))
+        if data is None or len(data) == 0:
+            raise commands.BadArgument('There are no tags added.')
 
-        async with aiosqlite.connect('Data/fdrbot.db') as db, db.execute('SELECT * FROM tags WHERE name = ?', (name,)) as cursor:
-            tag = await cursor.fetchone()
+        tags = sorted([TagData(*row) for row in data], key=lambda tag: tag.name)
+        tag_embeds = list()
 
-        if tag is None:
-            await ctx.reply(invalid_embed)
-            return
-
-        message = await ctx.reply(embed=embed)
-
-        try:
-            response = await self.bot.wait_for('message', check=lambda message: message.author == ctx.author, timeout=300)
-            answer = response.content.lower()
-        except asyncio.exceptions.TimeoutError:
-            await message.edit(embed=timeout_embed)
-            return
-
-        try:
-            await response.delete()
-        except discord.errors.NotFound:
-            pass
-
-        if 'yes' not in answer:
-            await message.edit(embed=cancelled_embed)
-            return
-
-        async with aiosqlite.connect('Data/fdrbot.db') as db:
-            await db.execute('DELETE FROM tags WHERE name = ?', (name,))
-            await db.commit()
-
-        embed = discord.Embed(title='Remove Tag', description=f'`{name}` tag removed!')
-        embed.set_footer(text=ctx.author.display_name, icon_url=ctx.author.avatar_url_as(static_format='png'))
-        await message.edit(embed=embed)
-
-    @commands.command()
-    @commands.guild_only()
-    async def taglist(self, ctx: commands.Context) -> None:
-        async with aiosqlite.connect('Data/fdrbot.db') as db, db.execute('SELECT name, creator FROM tags') as cursor:
-            tags = await cursor.fetchall()
-
-        if tags is None or len(tags) == 0:
-            embed = discord.Embed(title='Error', description="There aren't any tags!")
-            await ctx.reply(embed=embed)
-            return
-
-        embed = discord.Embed(title='Tags')
         for tag in tags:
-            creator = await self.bot.fetch_user(tag[1])
-            if creator is None:
-                mention = 'Deleted User'
-            else:
-                mention = creator.mention
+            try:
+                creator = await self.bot.fetch_user(tag.creator)
+                name = f'{creator.name}#{creator.discriminator}'
+            except discord.errors.NotFound:
+                name = 'Deleted User'
 
-            embed.add_field(name=tag[0], value=f'**Creator:** {mention}')
+            tag_embeds.append(
+                discord.Embed.from_dict(
+                    {
+                        'title': tag.name,
+                        'description': tag.content,
+                        'footer': {
+                            'text': f"Created by {name} | Used {tag.uses} time{'s' if tag.uses != 1 else ''}",
+                            'icon_ url': str(
+                                ctx.author.display_avatar.with_static_format('png').url
+                            ),
+                        },
+                    }
+                )
+            )
 
-        embed.set_footer(text=ctx.author.display_name, icon_url=ctx.author.avatar_url_as(static_format='png'))
-        await ctx.reply(embed=embed)
+        paginator = PaginatorView(tag_embeds, ctx, timeout=180)
+        await ctx.respond(
+            embed=tag_embeds[paginator.embed_num], view=paginator, ephemeral=True
+        )
 
-def setup(bot):
-    bot.add_cog(Tags(bot))
+
+def setup(bot: discord.Bot):
+    bot.add_cog(TagsCog(bot))
