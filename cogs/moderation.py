@@ -126,7 +126,7 @@ class ModerationCog(discord.Cog, name='Moderation'):
         except discord.errors.HTTPException:
             pass
 
-        await user.ban(reason=reason, delete_messages=delete_messages)
+        await ctx.guild.ban(user, reason=reason, delete_messages=delete_messages)
 
         embed.description = (
             f"{user.mention} has been banned{f' for `{reason}`.' if reason else '.'}"
