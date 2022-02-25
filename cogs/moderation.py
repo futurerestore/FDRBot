@@ -5,7 +5,7 @@ from discord import Option
 import discord
 
 
-class ModerationCog(discord.Cog, name='Moderation'):
+class ModCog(discord.Cog, name='Moderation'):
     def __init__(self, bot):
         self.bot = bot
 
@@ -163,4 +163,4 @@ class ModerationCog(discord.Cog, name='Moderation'):
 
 
 def setup(bot: discord.Bot):
-    bot.add_cog(ModerationCog(bot))
+    bot.add_cog(ModCog(bot))
