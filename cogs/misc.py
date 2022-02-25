@@ -30,15 +30,12 @@ class MiscCog(discord.Cog, name='Miscellaneous'):
 
     @slash_command(description="See FDRBot's statistics.")
     async def stats(self, ctx: discord.ApplicationContext) -> None:
-        async with self.bot.db.execute('SELECT start_time from uptime') as cursor:
-            start_time = (await cursor.fetchone())[0]
-
         embed = {
             'title': 'FDRBot Statistics',
             'fields': [
                 {
                     'name': 'Bot Started',
-                    'value': await self.utils.get_uptime(start_time),
+                    'value': await self.utils.get_uptime(self.bot.start_time),
                     'inline': True,
                 },
                 {

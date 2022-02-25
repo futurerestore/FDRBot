@@ -78,26 +78,10 @@ async def startup():
         )
         await db.commit()
 
-        await db.execute(
-            '''
-            CREATE TABLE IF NOT EXISTS uptime(
-            start_time REAL
-            )'''
-        )
-        await db.commit()
-
-        async with db.execute('SELECT start_time FROM uptime') as cursor:
-            if await cursor.fetchone() is None:
-                sql = 'INSERT INTO uptime(start_time) VALUES(?)'
-            else:
-                sql = 'UPDATE uptime SET start_time = ?'
-
-        await db.execute(sql, (await asyncio.to_thread(time.time),))
-        await db.commit()
-
         # Setup bot attributes
         bot.db = db
         bot.session = session
+        bot.start_time = await asyncio.to_thread(time.time)
 
         try:
             await bot.start(os.environ['FDRBOT_TOKEN'])
