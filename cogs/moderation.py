@@ -20,9 +20,6 @@ class ModerationCog(discord.Cog, name='Moderation'):
             required=False,
         ),
     ) -> None:
-        if ctx.guild is None:
-            raise commands.errors.NoPrivateMessage()
-
         if not ctx.guild.me.guild_permissions.kick_members:
             raise commands.errors.BotMissingPermissions(['kick_members'])
 
@@ -86,9 +83,6 @@ class ModerationCog(discord.Cog, name='Moderation'):
             default=0,
         ),
     ) -> None:
-        if ctx.guild is None:
-            raise commands.errors.NoPrivateMessage()
-
         if not ctx.guild.me.guild_permissions.ban_members:
             raise commands.errors.BotMissingPermissions(['ban_members'])
 
@@ -143,9 +137,6 @@ class ModerationCog(discord.Cog, name='Moderation'):
         ctx: discord.ApplicationContext,
         messages: Option(int, description='Number of messages to delete.'),
     ) -> None:
-        if ctx.guild is None:
-            raise commands.errors.NoPrivateMessage()
-
         for perm in ('manage_messages', 'read_message_history'):
             if not getattr(ctx.guild.me.guild_permissions, perm):
                 raise commands.errors.BotMissingPermissions([perm])
