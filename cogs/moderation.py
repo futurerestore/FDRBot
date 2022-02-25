@@ -67,6 +67,21 @@ class ModCog(discord.Cog, name='Moderation'):
         )
         await ctx.respond(embed=embed)
 
+        async with self.bot.db.execute(
+            'SELECT channel FROM logs WHERE guild = ?', (ctx.guild.id,)
+        ) as cursor:
+            data = await cursor.fetchone()
+
+        if data is not None:
+            channel = ctx.guild.get_channel(data[0])
+            if channel is not None:
+                await channel.send(embed=embed)
+            else:
+                await self.bot.db.execute(
+                    'DELETE FROM logs WHERE guild = ?', (ctx.guild.id,)
+                )
+                await self.bot.db.commit()
+
     @slash_command(description='Ban a user.')
     async def ban(
         self,
@@ -130,6 +145,55 @@ class ModCog(discord.Cog, name='Moderation'):
             icon_url=ctx.author.avatar.with_static_format('png').url,
         )
         await ctx.respond(embed=embed)
+
+        async with self.bot.db.execute(
+            'SELECT channel FROM logs WHERE guild = ?', (ctx.guild.id,)
+        ) as cursor:
+            data = await cursor.fetchone()
+
+        if data is not None:
+            channel = ctx.guild.get_channel(data[0])
+            if channel is not None:
+                await channel.send(embed=embed)
+            else:
+                await self.bot.db.execute(
+                    'DELETE FROM logs WHERE guild = ?', (ctx.guild.id,)
+                )
+                await self.bot.db.commit()
+
+    @slash_command(
+        name='modchannel', description='Set channel to send moderation actions to.'
+    )
+    async def set_modchannel(
+        self,
+        ctx: discord.ApplicationContext,
+        channel: Option(
+            discord.TextChannel, description='Channel to send moderation actions to.'
+        ),
+    ) -> None:
+        if not channel.permissions_for(ctx.guild.me).send_messages:
+            raise commands.BadArgument(
+                f'I do not have permission to send messages in {channel.mention}.'
+            )
+
+        if not ctx.author.guild_permissions.manage_guild:
+            raise commands.MissingPermissions(['manage_guild'])
+
+        await self.bot.db.execute(
+            'INSERT INTO logs(guild, channel) VALUES(?,?)',
+            (ctx.guild.id, channel.id),
+        )
+        await self.bot.db.commit()
+
+        embed = discord.Embed(
+            title='Moderation Logs',
+            description=f'Moderation actions will now be sent to {channel.mention}.',
+        )
+        embed.set_footer(
+            text=ctx.author.display_name,
+            icon_url=ctx.author.avatar.with_static_format('png').url,
+        )
+        await ctx.respond(embed=embed, ephemeral=True)
 
     @slash_command(description='Delete messages from a channel.')
     async def clear(

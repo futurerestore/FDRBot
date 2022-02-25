@@ -78,6 +78,16 @@ async def startup():
         )
         await db.commit()
 
+        await db.execute(
+            '''
+            CREATE TABLE IF NOT EXISTS logs(
+            guild INTEGER,
+            channel INTEGER
+            )
+            '''
+        )
+        await db.commit()
+
         # Setup bot attributes
         bot.db = db
         bot.session = session
