@@ -11,6 +11,9 @@ from views.buttons import PaginatorView, SelectView
 import discord
 
 
+TagData = namedtuple('TagData', ['name', 'content', 'uses', 'creator'])
+
+
 async def tag_autocomplete(ctx: discord.AutocompleteContext):
     res = list()
     async with ctx.bot.db.execute('SELECT name FROM tags') as cursor:
@@ -20,9 +23,6 @@ async def tag_autocomplete(ctx: discord.AutocompleteContext):
 
     res.sort()
     return res
-
-
-TagData = namedtuple('TagData', ['name', 'content', 'uses', 'creator'])
 
 
 class TagsCog(discord.Cog, name='Tags'):
