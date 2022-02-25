@@ -162,5 +162,5 @@ class ModerationCog(discord.Cog, name='Moderation'):
         await ctx.respond(embed=embed, delete_after=5)
 
 
-def setup(bot):
+def setup(bot: discord.Bot):
     bot.add_cog(ModerationCog(bot))

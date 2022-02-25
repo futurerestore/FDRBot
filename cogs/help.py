@@ -108,5 +108,5 @@ class HelpCog(discord.Cog, name='Help'):
                 )
 
 
-def setup(bot):
+def setup(bot: discord.Bot):
     bot.add_cog(HelpCog(bot))

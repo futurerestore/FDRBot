@@ -112,5 +112,5 @@ class UtilsCog(discord.Cog, name='Utilities'):
         return discord.Embed.from_dict(embed)
 
 
-def setup(bot):
+def setup(bot: discord.Bot):
     bot.add_cog(UtilsCog(bot))

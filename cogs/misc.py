@@ -65,5 +65,5 @@ class MiscCog(discord.Cog, name='Miscellaneous'):
         await ctx.respond(embed=discord.Embed.from_dict(embed), ephemeral=True)
 
 
-def setup(bot):
+def setup(bot: discord.Bot):
     bot.add_cog(MiscCog(bot))
