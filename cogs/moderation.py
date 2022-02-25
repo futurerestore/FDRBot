@@ -21,26 +21,26 @@ class ModerationCog(discord.Cog, name='Moderation'):
         ),
     ) -> None:
         if not ctx.guild.me.guild_permissions.kick_members:
-            raise commands.errors.BotMissingPermissions(['kick_members'])
+            raise commands.BotMissingPermissions(['kick_members'])
 
         if not ctx.author.guild_permissions.kick_members:
-            raise commands.errors.MissingPermissions(['kick_members'])
+            raise commands.MissingPermissions(['kick_members'])
 
         member = ctx.guild.get_member(user.id)
         if member is None:
-            raise commands.errors.BadArgument(f'{user.mention} is not in this server.')
+            raise commands.BadArgument(f'{user.mention} is not in this server.')
 
         if ctx.guild.roles.index(ctx.guild.me.top_role) <= ctx.guild.roles.index(
             member.top_role
         ):
-            raise commands.errors.BadArgument(
+            raise commands.BadArgument(
                 f'I do not have permission to kick {member.mention}.'
             )
 
         if ctx.guild.roles.index(ctx.author.top_role) <= ctx.guild.roles.index(
             member.top_role
         ) or member in (ctx.author, ctx.guild.me, ctx.guild.owner):
-            raise commands.errors.BadArgument(f'You cannot kick {member.mention}.')
+            raise commands.BadArgument(f'You cannot kick {member.mention}.')
 
         embed = discord.Embed(
             title='Kick',
@@ -84,25 +84,25 @@ class ModerationCog(discord.Cog, name='Moderation'):
         ),
     ) -> None:
         if not ctx.guild.me.guild_permissions.ban_members:
-            raise commands.errors.BotMissingPermissions(['ban_members'])
+            raise commands.BotMissingPermissions(['ban_members'])
 
         if not ctx.author.guild_permissions.ban_members:
-            raise commands.errors.MissingPermissions(['ban_members'])
+            raise commands.MissingPermissions(['ban_members'])
 
         if ctx.guild.roles.index(ctx.guild.me.top_role) <= ctx.guild.roles.index(
             user.top_role
         ):
-            raise commands.errors.BadArgument(
+            raise commands.BadArgument(
                 f'I do not have permission to ban {user.mention}.'
             )
 
         if ctx.guild.roles.index(ctx.author.top_role) <= ctx.guild.roles.index(
             user.top_role
         ) or user in (ctx.author, ctx.guild.me, ctx.guild.owner):
-            raise commands.errors.BadArgument(f'You cannot ban {user.mention}.')
+            raise commands.BadArgument(f'You cannot ban {user.mention}.')
 
         if not 0 <= delete_messages <= 7:
-            raise commands.errors.BadArgument(
+            raise commands.BadArgument(
                 'Number of days of message history to delete must be between 0-7.'
             )
 
@@ -139,13 +139,13 @@ class ModerationCog(discord.Cog, name='Moderation'):
     ) -> None:
         for perm in ('manage_messages', 'read_message_history'):
             if not getattr(ctx.guild.me.guild_permissions, perm):
-                raise commands.errors.BotMissingPermissions([perm])
+                raise commands.BotMissingPermissions([perm])
 
         if not ctx.author.guild_permissions.manage_messages:
-            raise commands.errors.MissingPermissions(['manage_messages'])
+            raise commands.MissingPermissions(['manage_messages'])
 
         if messages == 0:
-            raise commands.errors.BadArgument(
+            raise commands.BadArgument(
                 'Number of messages to delete must be greater than 0.'
             )
 
