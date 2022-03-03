@@ -15,7 +15,7 @@ class ModCog(discord.Cog, name='Moderation'):
     async def kick(
         self,
         ctx: discord.ApplicationContext,
-        user: Option(commands.UserConverter, description='User to kick.'),
+        user: Option(commands.MemberConverter, description='User to kick.'),
         reason: Option(
             str,
             description='Reason for kicking the user.',
@@ -117,17 +117,22 @@ class ModCog(discord.Cog, name='Moderation'):
         if not ctx.author.guild_permissions.ban_members:
             raise commands.MissingPermissions(['ban_members'])
 
-        if ctx.guild.roles.index(ctx.guild.me.top_role) <= ctx.guild.roles.index(
-            user.top_role
-        ):
-            raise commands.BadArgument(
-                f'I do not have permission to ban {user.mention}.'
-            )
+        try:
+            if ctx.guild.roles.index(ctx.guild.me.top_role) <= ctx.guild.roles.index(
+                user.top_role
+            ):
+                raise commands.BadArgument(
+                    f'I do not have permission to ban {user.mention}.'
+                )
 
-        if ctx.guild.roles.index(ctx.author.top_role) <= ctx.guild.roles.index(
-            user.top_role
-        ) or user in (ctx.author, ctx.guild.me, ctx.guild.owner):
-            raise commands.BadArgument(f'You cannot ban {user.mention}.')
+            user = await ctx.guild.fetch_member(user.id)
+            if ctx.guild.roles.index(ctx.author.top_role) <= ctx.guild.roles.index(
+                user.top_role
+            ) or user in (ctx.author, ctx.guild.me, ctx.guild.owner):
+                raise commands.BadArgument(f'You cannot ban {user.mention}.')
+
+        except discord.HTTPException:
+            pass
 
         if not 0 <= delete_messages <= 7:
             raise commands.BadArgument(

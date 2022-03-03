@@ -59,6 +59,9 @@ class ErrorsCog(discord.Cog, name='Errors'):
         elif isinstance(exc, commands.UserNotFound):
             embed.description = 'I could not find that user.'
 
+        elif isinstance(exc, commands.MemberNotFound):
+            embed.description = f'{exc.argument.mention} is not in this server.'
+
         elif isinstance(exc, (commands.BadArgument, ViewTimeoutException)):
             embed.description = str(exc)
 
