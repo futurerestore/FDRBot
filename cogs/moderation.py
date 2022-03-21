@@ -119,18 +119,19 @@ class ModCog(discord.Cog, name='Moderation'):
             raise commands.MissingPermissions(['ban_members'])
 
         try:
+            member = await ctx.guild.fetch_member(user.id)
+
             if ctx.guild.roles.index(ctx.guild.me.top_role) <= ctx.guild.roles.index(
-                user.top_role
+                member.top_role
             ):
                 raise commands.BadArgument(
-                    f'I do not have permission to ban {user.mention}.'
+                    f'I do not have permission to ban {member.mention}.'
                 )
 
-            user = await ctx.guild.fetch_member(user.id)
             if ctx.guild.roles.index(ctx.author.top_role) <= ctx.guild.roles.index(
-                user.top_role
-            ) or user in (ctx.author, ctx.guild.me, ctx.guild.owner):
-                raise commands.BadArgument(f'You cannot ban {user.mention}.')
+                member.top_role
+            ) or member in (ctx.author, ctx.guild.me, ctx.guild.owner):
+                raise commands.BadArgument(f'You cannot ban {member.mention}.')
 
         except discord.HTTPException:
             pass
@@ -154,7 +155,7 @@ class ModCog(discord.Cog, name='Moderation'):
         except discord.errors.HTTPException:
             pass
 
-        await ctx.guild.ban(user, reason=reason, delete_messages=delete_messages)
+        await ctx.guild.ban(user, reason=reason, delete_message_days=delete_messages)
 
         embed.description = (
             f"{user.mention} has been banned{f' for `{reason}`.' if reason else '.'}"
