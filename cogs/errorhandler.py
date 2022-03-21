@@ -1,20 +1,13 @@
+from datetime import datetime
 from discord.ext import commands
+from utils.errors import *
 
 import asyncio
 import discord
 
 
-class ViewTimeoutException(asyncio.exceptions.TimeoutError):
-    def __init__(self, timeout: int, *args):
-        self.timeout = timeout
-        super().__init__(
-            f"No response given in {timeout} second{'s' if timeout != 1 else ''}, cancelling.",
-            *args,
-        )
-
-
-class ErrorsCog(discord.Cog, name='Errors'):
-    def __init__(self, bot):
+class ErrorHandlerCog(discord.Cog, name='ErrorHandler'):
+    def __init__(self, bot: discord.Bot):
         self.bot = bot
 
     @discord.Cog.listener()
@@ -26,11 +19,23 @@ class ErrorsCog(discord.Cog, name='Errors'):
         if isinstance(exc, discord.ApplicationCommandInvokeError):
             exc = exc.__cause__
 
-        embed = discord.Embed(title='FDRBot Error', color=discord.Color.red())
+        embed = discord.Embed(title='Error', color=discord.Color.red())
+        embed.timestamp = await asyncio.to_thread(datetime.now)
         embed.set_footer(
             text=self.bot.user.name,
             icon_url=self.bot.user.avatar.with_static_format('png').url,
         )
+
+        if isinstance(exc, StopCommand):
+            embed.title = 'Cancelled'
+            embed.color = discord.Color.gold()
+
+            if ctx.interaction.response.is_done():
+                await ctx.edit(embed=embed)
+            else:
+                await ctx.respond(embed=embed, ephemeral=True)
+
+            return
 
         if isinstance(exc, commands.NoPrivateMessage):
             embed.description = 'This command can only be used in a server.'
@@ -59,10 +64,10 @@ class ErrorsCog(discord.Cog, name='Errors'):
         elif isinstance(exc, commands.UserNotFound):
             embed.description = 'I could not find that user.'
 
-        elif isinstance(exc, commands.MemberNotFound):
-            embed.description = f'{exc.argument.mention} is not in this server.'
+        elif isinstance(exc, ViewTimeoutException):
+            embed.description = f"No response given in {exc.timeout} second{'s' if exc.timeout != 1 else ''}, cancelling."
 
-        elif isinstance(exc, (commands.BadArgument, ViewTimeoutException)):
+        elif isinstance(exc, commands.BadArgument):
             embed.description = str(exc)
 
         else:
@@ -72,7 +77,7 @@ class ErrorsCog(discord.Cog, name='Errors'):
             )
             embed.add_field(
                 name='Error Info',
-                value=f'Command: `/{ctx.command.qualified_name}`\nError message: `{str(exc)}`',
+                value=f'Command: `/{ctx.command.qualified_name}`\nError message: `{str(exc) or None}`',
             )
 
         if ctx.interaction.response.is_done():
@@ -82,4 +87,4 @@ class ErrorsCog(discord.Cog, name='Errors'):
 
 
 def setup(bot: discord.Bot):
-    bot.add_cog(ErrorsCog(bot))
+    bot.add_cog(ErrorHandlerCog(bot))

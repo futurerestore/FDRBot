@@ -1,12 +1,12 @@
-from .errors import ViewTimeoutException
 from collections import namedtuple
 from discord.commands import SlashCommandGroup, slash_command
 from discord.enums import InputTextStyle
 from discord.ext import commands
 from discord.ui import InputText
 from discord import Option
-from views.modals import QuestionModal
-from views.buttons import PaginatorView, SelectView
+from utils.errors import *
+from utils.views.modals import QuestionModal
+from utils.views.buttons import PaginatorView, SelectView
 
 import discord
 
