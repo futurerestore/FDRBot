@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from dotenv import load_dotenv
+from dotenv.main import load_dotenv
 
 import aiohttp
 import aiopath
@@ -12,7 +12,10 @@ import sys
 import time
 
 
-async def startup():
+DB_PATH = aiopath.AsyncPath('Data/FDRBot.db')
+
+
+async def main():
     if sys.version_info[:2] < (3, 9):
         sys.exit('[ERROR] FDRBot requires Python 3.9 or higher. Exiting.')
 
@@ -63,9 +66,8 @@ async def startup():
 
         bot.load_extension(f'cogs.{cog.stem}')
 
-    db_path = aiopath.AsyncPath('Data/FDRBot.db')
-    await db_path.parent.mkdir(exist_ok=True)
-    async with aiosqlite.connect(db_path) as db, aiohttp.ClientSession() as session:
+    await DB_PATH.parent.mkdir(exist_ok=True)
+    async with aiosqlite.connect(DB_PATH) as db, aiohttp.ClientSession() as session:
         await db.execute(
             '''
             CREATE TABLE IF NOT EXISTS tags(
@@ -103,6 +105,6 @@ async def startup():
 
 if __name__ == '__main__':
     try:
-        asyncio.run(startup())
+        asyncio.run(main())
     except KeyboardInterrupt:
         pass
