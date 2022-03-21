@@ -15,7 +15,7 @@ class ModCog(discord.Cog, name='Moderation'):
     async def kick(
         self,
         ctx: discord.ApplicationContext,
-        user: Option(commands.MemberConverter, description='User to kick.'),
+        user: Option(commands.UserConverter, description='User to kick.'),
         reason: Option(
             str,
             description='Reason for kicking the user.',
@@ -28,21 +28,22 @@ class ModCog(discord.Cog, name='Moderation'):
         if not ctx.author.guild_permissions.kick_members:
             raise commands.MissingPermissions(['kick_members'])
 
-        member = await ctx.guild.fetch_member(user.id)
-        if member is None:
+        try:
+            user = await ctx.guild.fetch_member(user.id)
+        except discord.HTTPException:
             raise commands.BadArgument(f'{user.mention} is not in this server.')
 
         if ctx.guild.roles.index(ctx.guild.me.top_role) <= ctx.guild.roles.index(
-            member.top_role
+            user.top_role
         ):
             raise commands.BadArgument(
-                f'I do not have permission to kick {member.mention}.'
+                f'I do not have permission to kick {user.mention}.'
             )
 
         if ctx.guild.roles.index(ctx.author.top_role) <= ctx.guild.roles.index(
-            member.top_role
-        ) or member in (ctx.author, ctx.guild.me, ctx.guild.owner):
-            raise commands.BadArgument(f'You cannot kick {member.mention}.')
+            user.top_role
+        ) or user in (ctx.author, ctx.guild.me, ctx.guild.owner):
+            raise commands.BadArgument(f'You cannot kick {user.mention}.')
 
         embed = discord.Embed(
             title='Kick',
@@ -54,14 +55,14 @@ class ModCog(discord.Cog, name='Moderation'):
         )
 
         try:
-            await member.send(embed=embed)
+            await user.send(embed=embed)
         except discord.errors.HTTPException:
             pass
 
-        await member.kick(reason=reason)
+        await user.kick(reason=reason)
 
         embed.description = (
-            f"{member.mention} has been kicked{f' for `{reason}`.' if reason else '.'}"
+            f"{user.mention} has been kicked{f' for `{reason}`.' if reason else '.'}"
         )
         embed.set_footer(
             text=ctx.author.display_name,
@@ -79,11 +80,11 @@ class ModCog(discord.Cog, name='Moderation'):
             if channel is not None:
                 embed = discord.Embed(
                     title='Member Kicked',
-                    description=f"{member.mention} has been kicked by {ctx.author.mention}.",
+                    description=f"{user.mention} has been kicked by {ctx.author.mention}.",
                     timestamp=await asyncio.to_thread(datetime.now),
                 )
-                embed.set_thumbnail(url=member.avatar.with_static_format('png').url)
-                embed.add_field(name='Member', value=member.mention)
+                embed.set_thumbnail(url=user.avatar.with_static_format('png').url)
+                embed.add_field(name='Member', value=user.mention)
                 embed.add_field(name='Moderator', value=ctx.author.mention)
                 if reason:
                     embed.add_field(name='Reason', value=reason, inline=False)
