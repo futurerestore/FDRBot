@@ -62,7 +62,7 @@ class ModCog(discord.Cog, name='Moderation'):
         await member.kick(reason=reason)
 
         embed.description = (
-            f"{member.mention} has been kicked{f' for `{reason}`.' if reason else '.'}"
+            f"{user.mention} has been kicked{f' for `{reason}`.' if reason else '.'}"
         )
         embed.set_footer(
             text=ctx.author.display_name,
@@ -80,11 +80,11 @@ class ModCog(discord.Cog, name='Moderation'):
             if channel is not None:
                 embed = discord.Embed(
                     title='Member Kicked',
-                    description=f"{member.mention} has been kicked by {ctx.author.mention}.",
+                    description=f"{user.mention} has been kicked by {ctx.author.mention}.",
                     timestamp=await asyncio.to_thread(datetime.now),
                 )
-                embed.set_thumbnail(url=member.avatar.with_static_format('png').url)
-                embed.add_field(name='Member', value=member.mention)
+                embed.set_thumbnail(url=user.avatar.with_static_format('png').url)
+                embed.add_field(name='Member', value=user.mention)
                 embed.add_field(name='Moderator', value=ctx.author.mention)
                 if reason:
                     embed.add_field(name='Reason', value=reason, inline=False)
